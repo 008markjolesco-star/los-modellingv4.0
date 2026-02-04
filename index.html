@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LoS Modelling Pro - Olesco & Posada Project</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1d4ed8">
+    
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3448/3448555.png">
+    <link rel="manifest" href='data:application/manifest+json,{"name":"LoS Modelling Pro","short_name":"LoS Model","start_url":".","display":"standalone","background_color":"#ffffff","theme_color":"#1d4ed8"}'>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        darkCard: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; transition: background-color 0.3s; overflow: hidden; }
+        canvas { touch-action: none; border-radius: 16px; transition: all 0.3s ease; }
+        .tab-active { border-bottom: 4px solid #3b82f6; color: #3b82f6; font-weight: 800; }
+        .math-font { font-family: 'Times New Roman', serif; font-style: italic; }
+        .calc-btn { transition: all 0.1s; }
+        .calc-btn:active { transform: scale(0.92); }
+        .success-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+        select { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1em; }
+        
+        /* Prevent elastic scrolling on mobile for better drawing */
+        .no-scroll { position: fixed; width: 100%; height: 100%; overflow: hidden; }
+        #notesCanvas { cursor: crosshair; }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-darkBg min-h-screen text-slate-900 dark:text-slate-100 flex flex-col">
+
+    <div class="max-w-md mx-auto bg-white dark:bg-darkCard h-screen shadow-2xl flex flex-col border-x border-slate-200 dark:border-slate-800 relative overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-blue-600 dark:bg-blue-800 p-6 text-white shadow-lg pt-12 relative overflow-hidden flex-shrink-0">
+            <div class="flex justify-between items-start relative z-10">
+                <div>
+                    <h1 class="text-2xl font-black italic tracking-tighter uppercase leading-none">LoS Modelling</h1>
+                    <p class="text-[9px] opacity-80 font-bold uppercase tracking-[0.2em] mt-1">Olesco & Posada Project</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleTheme()" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-all">
+                        <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"></svg>
+                    </button>
+                    <button onclick="toggleView('formulas')" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Lab Navigation -->
+        <div id="navTabs" class="flex border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-darkCard sticky top-0 z-20 flex-shrink-0">
+            <button id="teacherTab" class="flex-1 py-4 text-[9px] tracking-[0.1em] font-black tab-active" onclick="setMode('teacher')">TEACHER</button>
+            <button id="studentTab" class="flex-1 py-4 text-[9px] tracking-[0.1em] font-black text-slate-400 dark:text-slate-500" onclick="setMode('student')">STUDENT</button>
+            <button id="notesTab" class="flex-1 py-4 text-[9px] tracking-[0.1em] font-black text-slate-400 dark:text-slate-500" onclick="toggleView('notes')">NOTES</button>
+        </div>
+
+        <!-- MAIN CONTENT CONTAINER -->
+        <div class="flex-1 relative overflow-hidden">
+            
+            <!-- LAB VIEW -->
+            <div id="labView" class="absolute inset-0 p-5 overflow-y-auto pb-24">
+                <div class="relative mb-6">
+                    <div class="bg-slate-900 rounded-2xl p-1 shadow-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700">
+                        <canvas id="triCanvas" class="w-full h-80 bg-slate-50 dark:bg-slate-900"></canvas>
+                    </div>
+                    
+                    <div id="ratioMeter" class="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                        <h4 class="text-[9px] font-black text-slate-400 uppercase tracking-widest flex justify-between">Ratio Tracker <span id="ratioStatus" class="text-blue-500 font-bold">Calculating...</span></h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-3"><span id="labelRatio1" class="text-[10px] font-bold text-slate-500 w-20 math-font text-right tracking-tight italic">Ref</span><div class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden"><div id="ratioBar1" class="ratio-bar h-full bg-slate-400 w-0"></div></div></div>
+                            <div class="flex items-center gap-3"><span id="labelRatio2" class="text-[10px] font-bold text-blue-500 w-20 math-font text-right tracking-tight italic">User</span><div class="flex-1 h-2 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden"><div id="ratioBar2" class="ratio-bar h-full bg-blue-500 w-0"></div></div></div>
+                        </div>
+                    </div>
+                    <div id="feedback" class="absolute -bottom-3 left-4 right-4 p-4 rounded-xl bg-white dark:bg-darkCard shadow-xl text-xs font-bold hidden border-2 transition-all z-10"></div>
+                </div>
+
+                <div id="inputs" class="space-y-6">
+                    <div id="teacherView" class="space-y-4">
+                        <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight flex items-center gap-2"><div class="w-2 h-6 bg-blue-600 rounded-full"></div>Setup</h3>
+                        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"><select id="scenarioSelect" class="w-full bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-blue-700 dark:text-blue-400 outline-none" onchange="handleScenarioChange()"><option value="ASA">Scenario: ASA (2 Angles, 1 Side)</option><option value="SSA">Scenario: SSA (Ambiguous Case)</option></select></div>
+                        <div class="grid grid-cols-3 gap-3" id="teacherInputs"></div>
+                        <button onclick="randomizeProblem()" class="w-full py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800">New Values</button>
+                    </div>
+
+<div id="studentView" class="hidden space-y-6">
+                        <div class="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100 dark:border-blue-800 text-center"><p id="challengeText" class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-semibold"></p></div>
+                        <div id="studentInputGrid" class="grid grid-cols-1 gap-4"></div>
+                        <button onclick="checkAnswer()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-200 active:scale-95 text-sm uppercase tracking-widest">Verify Triangle</button>
+                        <div id="solutionView" class="hidden space-y-4 pb-12"><div id="stepsContainer" class="space-y-3"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORMULA VIEW -->
+            <div id="formulaView" class="absolute inset-0 hidden p-6 overflow-y-auto pb-24 space-y-8 animate-in slide-in-from-right duration-300">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-black text-blue-600 uppercase italic">Trig Reference</h2>
+                    <button onclick="toggleView('lab')" class="text-xs bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full font-bold">Back to Lab</button>
+                </div>
+                <section class="space-y-4">
+                    <div class="bg-blue-600 p-6 rounded-2xl text-white shadow-lg">
+                        <h3 class="font-black uppercase text-xs tracking-widest mb-2">Law of Sines</h3>
+                        <p class="text-3xl math-font text-center my-6 font-bold">a/sin A = b/sin B = c/sin C</p>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <h4 class="text-[10px] font-black uppercase text-blue-500 mb-1 italic">When to use:</h4>
+                        <p class="text-xs text-slate-600 dark:text-slate-400">Use when you have a pair of side and its opposite angle (e.g., $a$ and $\angle A$) plus one other value.</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- NOTES/SKETCH VIEW -->
+            <div id="notesView" class="absolute inset-0 hidden bg-slate-50 dark:bg-slate-900 flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+                <div class="p-4 flex justify-between items-center bg-white dark:bg-darkCard border-b border-slate-200 dark:border-slate-800">
+                    <div>
+                        <h3 class="text-sm font-black text-blue-600 uppercase italic leading-none">Scratchpad</h3>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Manual Calculations</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="clearNotes()" class="bg-red-100 text-red-600 text-[10px] px-4 py-1.5 rounded-full font-black uppercase border border-red-200">Clear</button>
+                        <button onclick="toggleView('lab')" class="bg-slate-100 dark:bg-slate-800 text-[10px] px-4 py-1.5 rounded-full font-black uppercase border dark:border-slate-700">Back</button>
+                    </div>
+                </div>
+                <div class="flex-1 relative bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px]">
+                    <canvas id="notesCanvas" class="w-full h-full"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating SciCal Trigger -->
+        <button onclick="toggleCalc()" class="fixed bottom-6 right-6 w-14 h-14 bg-slate-800 dark:bg-blue-600 text-white rounded-full shadow-2xl z-50 flex items-center justify-center active:scale-90 transition-all border-4 border-white dark:border-darkBg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+        </button>
+
+        <!-- SciCal Modal (Simplified for logic) -->
+        <div id="calcModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-darkCard w-full max-w-xs rounded-3xl shadow-2xl overflow-hidden">
+                <div class="bg-slate-800 dark:bg-slate-900 p-6 text-right text-white">
+                    <div class="flex justify-between items-center mb-1 text-[9px] text-slate-400 font-bold uppercase"><span>SciCal (Deg)</span><button onclick="toggleCalc()">✕</button></div>
+                    <div id="calcDisplay" class="text-3xl font-bold truncate">0</div>
+                </div>
+                <div class="p-4 grid grid-cols-4 gap-2 bg-slate-50 dark:bg-darkCard">
+                    <button onclick="calcClear()" class="calc-btn p-3 bg-red-100 text-red-600 rounded-xl font-black text-xs">AC</button>
+                    <button onclick="calcOp('asin')" class="calc-btn p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl font-bold text-xs">asin</button>
+                    <button onclick="calcOp('sin')" class="calc-btn p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl font-bold text-xs">sin</button>
+                    <button onclick="calcOp('/')" class="calc-btn p-3 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">÷</button>
+                    <button onclick="calcNum(7)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">7</button>
+                    <button onclick="calcNum(8)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">8</button>
+                    <button onclick="calcNum(9)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">9</button>
+                    <button onclick="calcOp('*')" class="calc-btn p-3 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">×</button>
+                    <button onclick="calcNum(4)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">4</button>
+                    <button onclick="calcNum(5)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">5</button>
+                    <button onclick="calcNum(6)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">6</button>
+                    <button onclick="calcOp('-')" class="calc-btn p-3 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">−</button>
+                    <button onclick="calcNum(1)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">1</button>
+                    <button onclick="calcNum(2)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">2</button>
+                    <button onclick="calcNum(3)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">3</button>
+                    <button onclick="calcOp('+')" class="calc-btn p-3 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">+</button>
+                    <button onclick="calcNum(0)" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold col-span-2">0</button>
+                    <button onclick="calcNum('.')" class="calc-btn p-3 bg-white dark:bg-slate-800 rounded-xl font-bold">.</button>
+                    <button onclick="calcEval()" class="calc-btn p-3 bg-blue-600 text-white rounded-xl font-black text-xl">=</button>
+                </div>
+            </div>
+        </div>
+
+</div>
+
+    <script>
+        const canvas = document.getElementById('triCanvas'), ctx = canvas.getContext('2d');
+        const notesCanvas = document.getElementById('notesCanvas'), nCtx = notesCanvas.getContext('2d');
+        const feedback = document.getElementById('feedback'), solutionView = document.getElementById('solutionView');
+        const tInputsContainer = document.getElementById('teacherInputs'), scenarioSelect = document.getElementById('scenarioSelect');
+        const studentInputGrid = document.getElementById('studentInputGrid'), ratioBar1 = document.getElementById('ratioBar1'), ratioBar2 = document.getElementById('ratioBar2');
+        
+        let currentMode = 'teacher', showResult = false, isDarkMode = false;
+        let triangleData = { scenario: 'ASA', results: {}, studentInputs: {} };
+
+        // --- THEME & VIEW LOGIC ---
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            document.documentElement.classList.toggle('dark', isDarkMode);
+            updateThemeIcons();
+            draw();
+        }
+
+        function updateThemeIcons() {
+            const icon = document.getElementById('themeIcon');
+            icon.innerHTML = isDarkMode 
+                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z" />'
+                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />';
+        }
+
+        function toggleView(view) {
+            document.getElementById('labView').classList.toggle('hidden', view !== 'lab');
+            document.getElementById('formulaView').classList.toggle('hidden', view !== 'formulas');
+            document.getElementById('notesView').classList.toggle('hidden', view !== 'notes');
+            document.getElementById('navTabs').classList.toggle('hidden', view === 'formulas');
+            
+            // Update Tab Highlights
+            document.getElementById('notesTab').className = `flex-1 py-4 text-[9px] tracking-[0.1em] font-black transition-all ${view === 'notes' ? 'tab-active' : 'text-slate-400 dark:text-slate-500'}`;
+            if (view === 'lab') setMode(currentMode);
+
+            if (view === 'notes') resizeNotesCanvas();
+        }
+
+        // --- SKETCHPAD LOGIC ---
+        let drawing = false;
+        function resizeNotesCanvas() {
+            const rect = notesCanvas.parentElement.getBoundingClientRect();
+            notesCanvas.width = rect.width;
+            notesCanvas.height = rect.height;
+            nCtx.lineCap = 'round';
+            nCtx.lineJoin = 'round';
+            nCtx.lineWidth = 3;
+        }
+
+        function clearNotes() { nCtx.clearRect(0, 0, notesCanvas.width, notesCanvas.height); }
+
+        function getCoords(e) {
+            const rect = notesCanvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        const startDraw = (e) => { drawing = true; const {x,y} = getCoords(e); nCtx.beginPath(); nCtx.moveTo(x,y); };
+        const endDraw = () => { drawing = false; nCtx.closePath(); };
+        const doDraw = (e) => {
+            if (!drawing) return;
+            const {x,y} = getCoords(e);
+            nCtx.strokeStyle = isDarkMode ? '#60a5fa' : '#1d4ed8';
+            nCtx.lineTo(x,y);
+            nCtx.stroke();
+        };
+
+        notesCanvas.addEventListener('mousedown', startDraw);
+        notesCanvas.addEventListener('mousemove', doDraw);
+        window.addEventListener('mouseup', endDraw);
+        notesCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(e); });
+        notesCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); doDraw(e); });
+        notesCanvas.addEventListener('touchend', endDraw);
+
+        // --- CALCULATOR LOGIC ---
+        let calcExpr = "";
+        const calcDisplay = document.getElementById('calcDisplay');
+        function toggleCalc() { document.getElementById('calcModal').classList.toggle('hidden'); }
+        function calcNum(n) { calcExpr += n; updateCalc(); }
+        function calcOp(o) { calcExpr += o; updateCalc(); }
+        function calcClear() { calcExpr = ""; updateCalc(); }
+        function updateCalc() { calcDisplay.innerText = calcExpr || "0"; }
+        function calcEval() {
+            try {
+                let formula = calcExpr
+                    .replace(/asin\((.*?)\)/g, '(Math.asin($1)*180/Math.PI)')
+                    .replace(/sin\((.*?)\)/g, '(Math.sin(($1)*Math.PI/180))');
+                
+                if (calcExpr.startsWith('sin') && !calcExpr.includes('(')) {
+                    let val = calcExpr.replace('sin', '');
+                    formula = `Math.sin(${val} * Math.PI / 180)`;
+                }
+                if (calcExpr.startsWith('asin') && !calcExpr.includes('(')) {
+                    let val = calcExpr.replace('asin', '');
+                    formula = `Math.asin(${val}) * 180 / Math.PI`;
+                }
+
+                const result = eval(formula);
+                calcExpr = result.toFixed(4).toString();
+                updateCalc();
+            } catch (e) { calcDisplay.innerText = "Err"; calcExpr = ""; }
+        }
+
+        // --- APP CORE LOGIC ---
+        function handleScenarioChange() {
+            triangleData.scenario = scenarioSelect.value;
+            showResult = false; feedback.classList.add('hidden'); solutionView.classList.add('hidden');
+            if (triangleData.scenario === 'ASA') {
+                tInputsContainer.innerHTML = `
+                    <div><label class="text-[9px] text-slate-400 font-bold uppercase mb-1 block tracking-tighter italic">∠A (°)</label><input type="number" id="tVal1" value="110" class="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 p-3 rounded-xl text-sm font-bold t-input"></div>
+                    <div><label class="text-[9px] text-slate-400 font-bold uppercase mb-1 block tracking-tighter italic">∠C (°)</label><input type="number" id="tVal2" value="30" class="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 p-3 rounded-xl text-sm font-bold t-input"></div>
+                    <div><label class="text-[9px] text-slate-400 font-bold uppercase mb-1 block tracking-tighter italic">Side b</label><input type="number" id="tVal3" value="5" class="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 p-3 rounded-xl text-sm font-bold t-input"></div>`;
+            } else {
+                tInputsContainer.innerHTML = `
+                    <div><label class="text-[9px] text-slate-400 font-bold uppercase mb-1 block tracking-tighter italic">Side a</label><input type="number" id="tVal1" value="4" class="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 p-3 rounded-xl text-sm font-bold t-input"></div>
+                    <div><label class="text-[9px] text-slate-400 font-bold uppercase mb-1 block tracking-tighter italic">Side b</label><input type="number" id="tVal2" value="5" class="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 p-3 rounded-xl text-sm font-bold t-input"></div>
+                    <div><label class="text-[9px] text-slate-400 font-bold uppercase mb-1 block tracking-tighter italic">∠A (°)</label><input type="number" id="tVal3" value="30" class="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 p-3 rounded-xl text-sm font-bold t-input"></div>`;
+            }
+            document.querySelectorAll('.t-input').forEach(el => el.addEventListener('input', draw));
+            updateStudentInputs(); draw();
+        }
+
+function updateStudentInputs() {
+            if (triangleData.scenario === 'ASA') {
+                studentInputGrid.innerHTML = `
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"><span class="text-[10px] font-black text-slate-400 w-12 uppercase italic">∠B</span><input type="number" id="sInput1" class="flex-1 bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 p-2.5 rounded-xl font-bold outline-none focus:border-blue-500"></div>
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"><span class="text-[10px] font-black text-slate-400 w-12 uppercase italic">a</span><input type="number" id="sInput2" class="flex-1 bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 p-2.5 rounded-xl font-bold outline-none focus:border-blue-500"></div>
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"><span class="text-[10px] font-black text-slate-400 w-12 uppercase italic">c</span><input type="number" id="sInput3" class="flex-1 bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 p-2.5 rounded-xl font-bold outline-none focus:border-blue-500"></div>`;
+            } else {
+                studentInputGrid.innerHTML = `
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"><span class="text-[10px] font-black text-slate-400 w-12 uppercase italic">∠B</span><input type="number" id="sInput1" class="flex-1 bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 p-2.5 rounded-xl font-bold outline-none focus:border-blue-500"></div>
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"><span class="text-[10px] font-black text-slate-400 w-12 uppercase italic">∠C</span><input type="number" id="sInput2" class="flex-1 bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 p-2.5 rounded-xl font-bold outline-none focus:border-blue-500"></div>
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"><span class="text-[10px] font-black text-slate-400 w-12 uppercase italic">c</span><input type="number" id="sInput3" class="flex-1 bg-white dark:bg-darkCard border-2 border-slate-200 dark:border-slate-700 p-2.5 rounded-xl font-bold outline-none focus:border-blue-500"></div>`;
+            }
+        }
+
+        function setMode(m) {
+            currentMode = m;
+            document.getElementById('teacherTab').className = `flex-1 py-4 text-[9px] font-black transition-all ${m==='teacher'?'tab-active text-blue-600':'text-slate-400'}`;
+            document.getElementById('studentTab').className = `flex-1 py-4 text-[9px] font-black transition-all ${m==='student'?'tab-active text-blue-600':'text-slate-400'}`;
+            document.getElementById('teacherView').classList.toggle('hidden', m!=='teacher');
+            document.getElementById('studentView').classList.toggle('hidden', m!=='student');
+            if (m==='student') updateChallenge();
+            draw();
+        }
+
+        function updateChallenge() {
+            const v1 = parseFloat(document.getElementById('tVal1').value), v2 = parseFloat(document.getElementById('tVal2').value), v3 = parseFloat(document.getElementById('tVal3').value);
+            if (triangleData.scenario === 'ASA') document.getElementById('challengeText').innerHTML = `Given: ∠A = ${v1}°, ∠C = ${v2}°, side b = ${v3}. Solve the whole triangle.`;
+            else document.getElementById('challengeText').innerHTML = `Given: side a = ${v1}, side b = ${v2}, ∠A = ${v3}°. Solve the whole triangle.`;
+        }
+
+        function checkAnswer() {
+            triangleData.studentInputs = { val1: parseFloat(document.getElementById('sInput1').value), val2: parseFloat(document.getElementById('sInput2').value), val3: parseFloat(document.getElementById('sInput3').value) };
+            showResult = true; generateSolution(); draw();
+        }
+
+        function generateSolution() {
+            const v1 = parseFloat(document.getElementById('tVal1').value), v2 = parseFloat(document.getElementById('tVal2').value), v3 = parseFloat(document.getElementById('tVal3').value);
+            const container = document.getElementById('stepsContainer'); container.innerHTML = "";
+            if (triangleData.scenario === 'ASA') {
+                const angB = 180 - (v1 + v2), radA = v1*Math.PI/180, radC = v2*Math.PI/180, radB = angB*Math.PI/180;
+                const sideA = (v3*Math.sin(radA))/Math.sin(radB), sideC = (v3*Math.sin(radC))/Math.sin(radB);
+                triangleData.results = { angB, sideA, sideC };
+                container.innerHTML = createStepCard(1, "The Third Angle", `∠B = 180 - (${v1}+${v2}) = ${angB}°`) + createStepCard(2, "Ratio for Side a", `a = (b·sinA)/sinB ≈ ${sideA.toFixed(2)}`) + createStepCard(3, "Ratio for Side c", `c = (b·sinC)/sinB ≈ ${sideC.toFixed(2)}`);
+            } else {
+                const sinB = (v2*Math.sin(v3*Math.PI/180))/v1, angB = Math.asin(sinB)*180/Math.PI, angC = 180-(v3+angB), sideC = (v1*Math.sin(angC*Math.PI/180))/Math.sin(v3*Math.PI/180);
+                triangleData.results = { angB, angC, sideC };
+                container.innerHTML = createStepCard(1, "Sine of ∠B", `sin B = (${v2}·sin${v3}°)/${v1} ≈ ${sinB.toFixed(3)} → B ≈ ${angB.toFixed(2)}°`) + createStepCard(2, "The Final Angle", `∠C = 180 - (${v3}+${angB.toFixed(2)}) ≈ ${angC.toFixed(2)}°`) + createStepCard(3, "Solve side c", `c = (a·sinC)/sinA ≈ ${sideC.toFixed(2)}`);
+            }
+            solutionView.classList.remove('hidden');
+            const checks = [ Math.abs(triangleData.studentInputs.val1 - triangleData.results.angB) < 0.5, Math.abs(triangleData.studentInputs.val2 - (triangleData.scenario === 'ASA' ? triangleData.results.sideA : triangleData.results.angC)) < 0.5, Math.abs(triangleData.studentInputs.val3 - triangleData.results.sideC) < 0.5 ];
+            const correctCount = checks.filter(Boolean).length;
+            feedback.classList.remove('hidden'); feedback.innerText = correctCount === 3 ? "✨ PERFECT MASTER!" : `⚠️ Result: ${correctCount}/3 solved correctly.`;
+            feedback.className = `absolute -bottom-3 left-4 right-4 p-4 rounded-xl bg-white dark:bg-darkCard shadow-xl text-xs font-bold border-2 ${correctCount===3?'border-emerald-500 text-emerald-700 success-pulse':'border-amber-500 text-amber-700'}`;
+        }
+
+        function createStepCard(n, t, c) { return `<div class="bg-slate-50 dark:bg-slate-800 border-l-4 border-blue-500 p-4 rounded-r-2xl shadow-sm animate-in slide-in-from-left duration-300"><p class="text-[8px] font-black text-blue-600 uppercase mb-1 italic">Step ${n}: ${t}</p><p class="text-xs text-slate-700 dark:text-slate-300">${c}</p></div>`; }
+
+        function draw() {
+            const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width*dpr; canvas.height = rect.height*dpr; ctx.scale(dpr, dpr); ctx.clearRect(0,0,rect.width,rect.height);
+            const v1 = parseFloat(document.getElementById('tVal1')?.value)||0, v2 = parseFloat(document.getElementById('tVal2')?.value)||0, v3 = parseFloat(document.getElementById('tVal3')?.value)||0;
+            if (triangleData.scenario === 'ASA') drawASA(v1, v2, v3, rect); else drawSSA(v1, v2, v3, rect);
+        }
+
+        function drawASA(angA, angC, sideB, rect) {
+            const angB = 180-(angA+angC); if (angB<=0) return;
+            const radA = angA*Math.PI/180, radC = angC*Math.PI/180, radB = angB*Math.PI/180;
+            const targetC = (sideB*Math.sin(radC))/Math.sin(radB), scale = Math.min(rect.width/(sideB+4), rect.height/6)*0.9;
+            const ox = (rect.width-(sideB*scale))/2, oy = rect.height*0.75;
+            const strokeColor = isDarkMode ? '#cbd5e1' : '#0f172a';
+            const ghostColor = isDarkMode ? '#334155' : '#cbd5e1';
+            ctx.beginPath(); ctx.strokeStyle=strokeColor; ctx.lineWidth=4; ctx.moveTo(ox,oy); ctx.lineTo(ox+sideB*scale,oy); ctx.stroke();
+            const tx = ox + Math.cos(radA)*(targetC*scale), ty = oy - Math.sin(radA)*(targetC*scale);
+            ctx.beginPath(); ctx.setLineDash([8,4]); ctx.strokeStyle=ghostColor; ctx.moveTo(ox,oy); ctx.lineTo(tx,ty); ctx.lineTo(ox+sideB*scale,oy); ctx.stroke(); ctx.setLineDash([]);
+            updateRatioMeter(sideB/Math.sin(radB), (showResult?triangleData.studentInputs.val3:0)/Math.sin(radC));
+            if (showResult && currentMode==='student') {
+                const sX = ox+Math.cos(radA)*(triangleData.studentInputs.val3*scale), sY = oy-Math.sin(radA)*(triangleData.studentInputs.val3*scale);
+                ctx.beginPath(); ctx.strokeStyle = Math.abs(triangleData.studentInputs.val3-targetC)<0.1?'#10b981':'#3b82f6'; ctx.lineWidth=5; ctx.moveTo(ox,oy); ctx.lineTo(sX,sY); ctx.stroke();
+            }
+        }
+
+        function drawSSA(sideA, sideB, angA, rect) {
+            const radA = angA*Math.PI/180, h = sideB*Math.sin(radA); if (sideA<h) return;
+            const sinB = (sideB*Math.sin(radA))/sideA, angB = Math.asin(sinB)*180/Math.PI, angC = 180-(angA+angB), sideC = (sideA*Math.sin(angC*Math.PI/180))/Math.sin(radA);
+            const scale = Math.min(rect.width/(sideB+4), rect.height/6)*0.9, ox = (rect.width-(sideB*scale))/2, oy = rect.height*0.75;
+            const strokeColor = isDarkMode ? '#cbd5e1' : '#0f172a';
+            const ghostColor = isDarkMode ? '#334155' : '#cbd5e1';
+            ctx.beginPath(); ctx.strokeStyle=strokeColor; ctx.lineWidth=4; ctx.moveTo(ox+sideB*scale,oy); ctx.lineTo(ox,oy); ctx.stroke();
+            const tx = ox+sideB*scale+Math.cos(Math.PI-radA)*(sideC*scale), ty = oy - Math.sin(Math.PI-radA)*(sideC*scale);
+            ctx.beginPath(); ctx.setLineDash([8,4]); ctx.strokeStyle=ghostColor; ctx.moveTo(ox,oy); ctx.lineTo(tx,ty); ctx.lineTo(ox+sideB*scale,oy); ctx.stroke(); ctx.setLineDash([]);
+            updateRatioMeter(sideA/Math.sin(radA), sideB/Math.sin((showResult?triangleData.studentInputs.val1:0)*Math.PI/180));
+        }
+
+        function updateRatioMeter(t, c) {
+            const m = Math.max(t,c,1)*1.2; ratioBar1.style.width=(t/m*100)+'%';
+            if (c>0 && showResult) { ratioBar2.style.width=(c/m*100)+'%'; ratioStatus.innerText = Math.abs(t-c)<0.1?"Balanced ✓":"Unbalanced ⚠"; }
+            else { ratioBar2.style.width='0%'; ratioStatus.innerText="Waiting..."; }
+        }
+
+        function randomizeProblem() {
+            if (triangleData.scenario === 'ASA') { document.getElementById('tVal1').value = Math.floor(Math.random()*50)+40; document.getElementById('tVal2').value = Math.floor(Math.random()*40)+20; document.getElementById('tVal3').value = (Math.random()*5+3).toFixed(1); }
+            else { document.getElementById('tVal1').value = (Math.random()*3+4).toFixed(1); document.getElementById('tVal2').value = (Math.random()*2+5).toFixed(1); document.getElementById('tVal3').value = Math.floor(Math.random()*30)+25; }
+            draw();
+        }
+
+        window.onload = () => { updateThemeIcons(); handleScenarioChange(); window.addEventListener('resize', () => { draw(); resizeNotesCanvas(); }); };
+    </script>
+</body>
+</html>
+
